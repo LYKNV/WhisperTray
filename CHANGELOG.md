@@ -6,6 +6,8 @@ All notable changes to WhisperTray are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-25
+
 ### Added
 - Stateful tray icons: the glyph now changes between Idle, Recording,
   Transcribing and Injecting instead of the static system icon.
