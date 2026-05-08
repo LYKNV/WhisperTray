@@ -75,6 +75,13 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern short GetKeyState(int vKey);
 
+    // GetAsyncKeyState reports whether a key is physically down RIGHT NOW, independent of
+    // the message queue or which window has focus. Bit 0x8000 of the return value is set
+    // while the key is pressed — this is what we use to wait out a still-held hotkey
+    // modifier before firing Ctrl+V.
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int vKey);
+
     // ---- Foreground window ----
 
     [DllImport("user32.dll")]

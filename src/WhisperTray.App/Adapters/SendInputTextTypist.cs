@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using WhisperTray.Core.Injection;
 using static WhisperTray.App.Adapters.NativeMethods;
@@ -8,6 +9,7 @@ namespace WhisperTray.App.Adapters;
 public sealed class SendInputTextTypist : ITextTypist
 {
     private static readonly int InputSize = Marshal.SizeOf<INPUT>();
+    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
 
     public void TypeUnicode(string text)
     {
@@ -29,8 +31,18 @@ public sealed class SendInputTextTypist : ITextTypist
         SendOrThrow(inputs);
     }
 
-    public void PressPasteShortcut()
+    public bool TryPasteWhenModifiersReleased(TimeSpan timeout)
     {
+        var stopwatch = Stopwatch.StartNew();
+        while (AnyModifierHeld())
+        {
+            if (stopwatch.Elapsed >= timeout)
+            {
+                return false;
+            }
+            Thread.Sleep(PollInterval);
+        }
+
         var inputs = new[]
         {
             MakeVkInput(VK_CONTROL, keyUp: false),
@@ -39,7 +51,19 @@ public sealed class SendInputTextTypist : ITextTypist
             MakeVkInput(VK_CONTROL, keyUp: true),
         };
         SendOrThrow(inputs);
+        return true;
     }
+
+    private static bool AnyModifierHeld()
+    {
+        return IsHeld(VK_CONTROL)
+            || IsHeld(VK_MENU)
+            || IsHeld(VK_SHIFT)
+            || IsHeld(VK_LWIN)
+            || IsHeld(VK_RWIN);
+    }
+
+    private static bool IsHeld(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
     private static void SendOrThrow(INPUT[] inputs)
     {

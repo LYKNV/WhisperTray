@@ -11,6 +11,11 @@ public sealed class CascadingTextInjector : ITextInjector
 {
     public static readonly TimeSpan ClipboardRestoreDelay = TimeSpan.FromSeconds(2);
 
+    // Upper bound for waiting out a still-held hotkey modifier before firing Ctrl+V.
+    // Generous on purpose — most users release within ~100 ms; the long tail is just to
+    // keep the experience robust if the user is e.g. mid-chord with Win held intentionally.
+    public static readonly TimeSpan ModifierReleaseTimeout = TimeSpan.FromSeconds(5);
+
     private readonly IClipboardService _clipboard;
     private readonly ITextTypist _typist;
     private readonly IDelayedExecutor _delay;
@@ -82,7 +87,18 @@ public sealed class CascadingTextInjector : ITextInjector
     {
         var previous = _clipboard.GetText();
         _clipboard.SetText(text);
-        _typist.PressPasteShortcut();
+
+        if (!_typist.TryPasteWhenModifiersReleased(ModifierReleaseTimeout))
+        {
+            // Modifier still held when the timeout fired. Firing Ctrl+V now would be
+            // combined with that modifier (e.g. Win+Ctrl+V) and silently drop. Leave
+            // the transcription on the clipboard for manual paste and skip the restore
+            // — otherwise we'd swap the text back to the previous clipboard before the
+            // user has a chance to use it.
+            return new InjectionResult(
+                InjectionOutcome.ClipboardOnly,
+                $"A modifier key was still held after {ModifierReleaseTimeout.TotalSeconds:0}s; transcription left in clipboard for manual paste.");
+        }
 
         if (previous is not null)
         {

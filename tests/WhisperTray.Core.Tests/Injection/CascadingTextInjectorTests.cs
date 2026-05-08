@@ -83,6 +83,32 @@ public class CascadingTextInjectorTests
     }
 
     [Fact]
+    public void Inject_ModePaste_PassesConfiguredTimeoutToTypist()
+    {
+        var h = new Harness();
+
+        h.Sut.Inject("hello", NormalTarget(), InjectionMode.Paste);
+
+        h.Typist.LastPasteTimeout.Should().Be(CascadingTextInjector.ModifierReleaseTimeout);
+    }
+
+    [Fact]
+    public void Inject_ModePaste_TimeoutWaitingForModifiers_FallsBackToClipboardOnly()
+    {
+        var h = new Harness();
+        h.Typist.PasteWillSucceed = false;
+
+        var result = h.Sut.Inject("hello", NormalTarget(), InjectionMode.Paste);
+
+        result.Outcome.Should().Be(InjectionOutcome.ClipboardOnly);
+        result.Reason.Should().NotBeNullOrEmpty();
+        h.Typist.PasteAttemptCount.Should().Be(1);
+        h.Typist.PasteShortcutCount.Should().Be(0, "Ctrl+V is not fired when a modifier is still held");
+        h.Clipboard.Text.Should().Be("hello", "transcription must stay in clipboard so the user can paste it manually");
+        h.Delay.Scheduled.Should().BeEmpty("clipboard must NOT be restored — otherwise the transcription would vanish before the user pastes");
+    }
+
+    [Fact]
     public void Inject_ModePaste_PreviousClipboardEmpty_SkipsRestore()
     {
         var clipboard = new FakeClipboardService(initialText: null);
