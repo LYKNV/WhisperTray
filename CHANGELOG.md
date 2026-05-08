@@ -6,6 +6,17 @@ All notable changes to WhisperTray are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-08
+
+### Fixed
+- Paste injection silently failed when the user kept holding the hotkey
+  modifier (e.g. Win in Win+Z) past the moment the transcription was
+  ready: the synthesised Ctrl+V got combined into Win+Ctrl+V and dropped
+  on the floor. Injection now polls `GetAsyncKeyState` until Ctrl/Alt/
+  Shift/Win are all physically released (5-second timeout) before firing
+  the shortcut. On timeout the transcription stays on the clipboard so
+  the user can paste it manually.
+
 ## [0.2.0] — 2026-04-25
 
 ### Added
