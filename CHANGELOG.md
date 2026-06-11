@@ -6,6 +6,21 @@ All notable changes to WhisperTray are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-11
+
+### Added
+- Configurable transcription timeout: new "Timeout (seconds)" field in the
+  Settings window (`timeoutSeconds` in `settings.json`, default 120, valid
+  range 10–600). The deadline is enforced for every provider, including the
+  whisper-api.com submit + poll loop, so a stuck transcription can no longer
+  hang the app for minutes. On expiry a "Transcription timed out" error is
+  shown — distinct from user cancellation.
+
+### Changed
+- The previously hardcoded transport timeouts (2-minute `HttpClient` limit
+  and 5-minute whisper-api.com poll budget) are replaced by the single
+  configurable timeout above.
+
 ## [0.2.1] — 2026-05-08
 
 ### Fixed
