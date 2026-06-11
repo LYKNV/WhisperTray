@@ -30,7 +30,13 @@ public sealed class HttpTranscriptionClientFactory : ITranscriptionClientFactory
         return settings.Provider switch
         {
             TranscriptionProvider.WhisperApi =>
-                new WhisperApiClient(_http, settings.BaseUrl, settings.ApiKey),
+                new WhisperApiClient(
+                    _http,
+                    settings.BaseUrl,
+                    settings.ApiKey,
+                    pollBudget: settings.TimeoutSeconds > 0
+                        ? TimeSpan.FromSeconds(settings.TimeoutSeconds)
+                        : null),
             _ =>
                 new OpenAiCompatibleClient(_http, settings.BaseUrl, settings.ApiKey),
         };

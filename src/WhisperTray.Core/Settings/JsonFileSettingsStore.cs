@@ -90,6 +90,7 @@ public sealed class JsonFileSettingsStore : ISettingsStore
         PromptHint = p.PromptHint ?? Settings.Default.PromptHint,
         AudioFormat = p.AudioFormat ?? Settings.Default.AudioFormat,
         InjectionMode = p.InjectionMode ?? Settings.Default.InjectionMode,
+        TimeoutSeconds = p.TimeoutSeconds is > 0 ? p.TimeoutSeconds.Value : Settings.Default.TimeoutSeconds,
     };
 
     private string? ResolveApiKey(PersistedSettings p)
@@ -122,6 +123,7 @@ public sealed class JsonFileSettingsStore : ISettingsStore
             PromptHint = s.PromptHint,
             AudioFormat = s.AudioFormat,
             InjectionMode = s.InjectionMode,
+            TimeoutSeconds = s.TimeoutSeconds,
         };
 
         if (string.IsNullOrEmpty(s.ApiKey))
@@ -152,5 +154,6 @@ public sealed class JsonFileSettingsStore : ISettingsStore
         public string? PromptHint { get; init; }
         public AudioFormat? AudioFormat { get; init; }
         public InjectionMode? InjectionMode { get; init; }
+        public int? TimeoutSeconds { get; init; }
     }
 }

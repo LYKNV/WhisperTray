@@ -19,6 +19,7 @@ public class SettingsTests
         defaults.PromptHint.Should().Be(string.Empty);
         defaults.AudioFormat.Should().Be(AudioFormat.OggOpus);
         defaults.InjectionMode.Should().Be(InjectionMode.Auto);
+        defaults.TimeoutSeconds.Should().Be(120);
         defaults.AudioDeviceId.Should().BeNull();
         defaults.ApiKey.Should().BeNull();
     }

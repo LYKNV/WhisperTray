@@ -106,6 +106,13 @@ public sealed class Orchestrator
 
     private async Task RunPipelineAsync(RecordedAudio audio, ForegroundWindowInfo? target, CancellationToken cancellationToken)
     {
+        var settings = _settings();
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (settings.TimeoutSeconds > 0)
+        {
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+        }
+
         try
         {
             if (target is null)
@@ -114,7 +121,6 @@ public sealed class Orchestrator
                 return;
             }
 
-            var settings = _settings();
             var encoder = _encoderFactory.Create(settings.AudioFormat);
             var encoded = encoder.Encode(audio.Samples, audio.SampleRate);
 
@@ -129,7 +135,7 @@ public sealed class Orchestrator
                     Language = settings.Language,
                     Prompt = string.IsNullOrWhiteSpace(settings.PromptHint) ? null : settings.PromptHint,
                 },
-                cancellationToken).ConfigureAwait(false);
+                timeoutCts.Token).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(result.Text))
             {
@@ -155,6 +161,13 @@ public sealed class Orchestrator
         catch (TranscriptionException ex)
         {
             _notifier.NotifyError("Transcription failed", ex.Message);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _notifier.NotifyError(
+                "Transcription timed out",
+                $"The provider did not respond within {settings.TimeoutSeconds} seconds. "
+                + "The timeout can be changed in Settings.");
         }
         catch (OperationCanceledException)
         {

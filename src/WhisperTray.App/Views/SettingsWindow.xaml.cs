@@ -66,6 +66,7 @@ public partial class SettingsWindow : Window
         PromptBox.Text = s.PromptHint;
         AudioFormatCombo.SelectedItem = s.AudioFormat;
         InjectionModeCombo.SelectedItem = s.InjectionMode;
+        TimeoutBox.Text = s.TimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private void PopulateModelCombo(TranscriptionProvider provider, string currentModel)
@@ -232,6 +233,7 @@ public partial class SettingsWindow : Window
         var provider = ProviderCombo.SelectedItem is TranscriptionProvider picked ? picked : _initial.Provider;
         var audioFormat = AudioFormatCombo.SelectedItem is AudioFormat fmt ? fmt : _initial.AudioFormat;
         var injection = InjectionModeCombo.SelectedItem is InjectionMode mode ? mode : _initial.InjectionMode;
+        var timeoutSeconds = int.TryParse(TimeoutBox.Text.Trim(), out var parsedTimeout) ? parsedTimeout : -1;
 
         return _initial with
         {
@@ -245,6 +247,7 @@ public partial class SettingsWindow : Window
             PromptHint = PromptBox.Text,
             AudioFormat = audioFormat,
             InjectionMode = injection,
+            TimeoutSeconds = timeoutSeconds,
         };
     }
 }

@@ -293,6 +293,41 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public async Task ToggleAsync_TranscriptionExceedsTimeout_EmitsTimeoutErrorAndReturnsToIdle()
+    {
+        var h = new Harness();
+        h.Settings = h.Settings with { TimeoutSeconds = 1 };
+        h.TranscriptionClient.Delay = TimeSpan.FromSeconds(30);
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Sut.State.Should().Be(OrchestratorState.Idle);
+        h.Typist.PasteShortcutCount.Should().Be(0);
+        h.Notifier.Notifications.Should().ContainSingle(n =>
+            n.Severity == RecordingNotificationService.Severity.Error
+            && n.Title.Contains("timed out", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ToggleAsync_UserCancellation_ReportsCancelledNotTimeout()
+    {
+        var h = new Harness();
+        h.Settings = h.Settings with { TimeoutSeconds = 60 };
+        h.TranscriptionClient.Delay = TimeSpan.FromSeconds(30);
+        using var cts = new CancellationTokenSource();
+
+        await h.Sut.ToggleAsync();
+        var pipeline = h.Sut.ToggleAsync(cts.Token);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+        await pipeline;
+
+        h.Notifier.Notifications.Should().ContainSingle(n =>
+            n.Severity == RecordingNotificationService.Severity.Info
+            && n.Title.Contains("Cancelled", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Constructor_RejectsNullDependencies()
     {
         var recorder = new InMemoryFakeRecorder(new RecordedAudio(new byte[4], 16_000));

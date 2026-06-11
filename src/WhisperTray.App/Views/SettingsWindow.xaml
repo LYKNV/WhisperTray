@@ -41,6 +41,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Hotkey" VerticalAlignment="Center" Margin="0,6"/>
@@ -89,6 +90,11 @@
 
                     <TextBlock Grid.Row="9" Grid.Column="0" Text="Injection mode" VerticalAlignment="Center" Margin="0,6"/>
                     <ComboBox x:Name="InjectionModeCombo" Grid.Row="9" Grid.Column="1" Margin="0,6"/>
+
+                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Timeout (seconds)" VerticalAlignment="Center" Margin="0,6"/>
+                    <TextBox x:Name="TimeoutBox" Grid.Row="10" Grid.Column="1"
+                             ToolTip="Maximum time to wait for the transcription provider before giving up (10–600 seconds)."
+                             Margin="0,6"/>
                 </Grid>
             </StackPanel>
         </ScrollViewer>

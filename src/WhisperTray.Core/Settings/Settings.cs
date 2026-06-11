@@ -13,6 +13,7 @@ public sealed record Settings
     public string PromptHint { get; init; } = "";
     public AudioFormat AudioFormat { get; init; } = AudioFormat.OggOpus;
     public InjectionMode InjectionMode { get; init; } = InjectionMode.Auto;
+    public int TimeoutSeconds { get; init; } = 120;
 
     public static Settings Default { get; } = new();
 }

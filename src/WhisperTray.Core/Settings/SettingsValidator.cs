@@ -37,6 +37,11 @@ public static class SettingsValidator
             errors.Add("API key: cannot be empty.");
         }
 
+        if (settings.TimeoutSeconds is < 10 or > 600)
+        {
+            errors.Add("Timeout: must be a whole number between 10 and 600 seconds.");
+        }
+
         return errors;
     }
 

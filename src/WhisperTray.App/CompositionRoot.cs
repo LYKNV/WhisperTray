@@ -35,7 +35,7 @@ public sealed class CompositionRoot : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
 
-        _http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+        _http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
 
         var settingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

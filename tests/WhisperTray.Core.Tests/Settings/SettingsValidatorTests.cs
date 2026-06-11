@@ -53,6 +53,29 @@ public class SettingsValidatorTests
         SettingsValidator.Validate(bad).Should().Contain(e => e.StartsWith("API key:"));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(9)]
+    [InlineData(601)]
+    public void Validate_TimeoutOutOfRange_ReportsError(int seconds)
+    {
+        var bad = ValidSample() with { TimeoutSeconds = seconds };
+
+        SettingsValidator.Validate(bad).Should().Contain(e => e.StartsWith("Timeout:"));
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(120)]
+    [InlineData(600)]
+    public void Validate_TimeoutWithinRange_NoError(int seconds)
+    {
+        var ok = ValidSample() with { TimeoutSeconds = seconds };
+
+        SettingsValidator.Validate(ok).Should().BeEmpty();
+    }
+
     [Fact]
     public void IsValid_MirrorsValidate()
     {
