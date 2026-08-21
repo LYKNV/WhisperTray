@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using WhisperTray.App.Adapters;
 using WhisperTray.App.Tray;
 using WhisperTray.App.Views;
+using WhisperTray.Core.Analytics;
 using WhisperTray.Core.Configuration;
 using WhisperTray.Core.Hotkeys;
 using WhisperTray.Core.Injection;
@@ -37,10 +38,10 @@ public sealed class CompositionRoot : IDisposable
 
         _http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
 
-        var settingsPath = Path.Combine(
+        var configDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WhisperTray",
-            "settings.json");
+            "WhisperTray");
+        var settingsPath = Path.Combine(configDir, "settings.json");
         // DPAPI-backed per-user encryption is active from Phase 9 onward. The store
         // transparently migrates any pre-existing plaintext apiKey on the first Save
         // driven by the Settings window.
@@ -49,6 +50,8 @@ public sealed class CompositionRoot : IDisposable
         _currentSettings = _settingsStore.Load();
 
         _autostart = new RegistryAutostartService(new HkcuRunRegistryKey());
+
+        var analytics = new CsvUsageAnalytics(Path.Combine(configDir, "analytics"));
 
         _recorder = new NAudioRecorder();
         var encoderFactory = new DefaultAudioEncoderFactory();
@@ -69,6 +72,7 @@ public sealed class CompositionRoot : IDisposable
             injector,
             foreground,
             _tray,
+            analytics,
             () => _currentSettings);
 
         _orchestrator.StateChanged += (_, state) => _tray.UpdateState(state);

@@ -265,4 +265,85 @@ public class OpenAiCompatibleClientTests
         var act = () => new OpenAiCompatibleClient(http, "", "sk-test");
         act.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public async Task TranscribeAsync_TokenShapedUsage_PopulatesTokenCounts()
+    {
+        var (client, _) = BuildClient(StubHttpMessageHandler.RespondingWith(
+            HttpStatusCode.OK,
+            """{"text":"hello","usage":{"type":"tokens","input_tokens":412,"output_tokens":48,"total_tokens":460}}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Usage.Should().NotBeNull();
+        result.Usage!.InputTokens.Should().Be(412);
+        result.Usage.OutputTokens.Should().Be(48);
+        result.Usage.TotalTokens.Should().Be(460);
+        result.Usage.BilledSeconds.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_DurationShapedUsage_PopulatesBilledSeconds()
+    {
+        var (client, _) = BuildClient(StubHttpMessageHandler.RespondingWith(
+            HttpStatusCode.OK,
+            """{"text":"hello","usage":{"type":"duration","seconds":8.72}}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Usage.Should().NotBeNull();
+        result.Usage!.BilledSeconds.Should().Be(8.72);
+        result.Usage.InputTokens.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_UsageWithoutTypeField_StillParsesPresentNumbers()
+    {
+        var (client, _) = BuildClient(StubHttpMessageHandler.RespondingWith(
+            HttpStatusCode.OK,
+            """{"text":"hello","usage":{"input_tokens":7,"total_tokens":7}}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Usage.Should().NotBeNull();
+        result.Usage!.InputTokens.Should().Be(7);
+        result.Usage.TotalTokens.Should().Be(7);
+        result.Usage.OutputTokens.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_NoUsageBlock_LeavesUsageNull()
+    {
+        var (client, _) = BuildClient(
+            StubHttpMessageHandler.RespondingWith(HttpStatusCode.OK, """{"text":"hello"}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Usage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_MalformedUsageBlock_LeavesUsageNullWithoutFailing()
+    {
+        var (client, _) = BuildClient(StubHttpMessageHandler.RespondingWith(
+            HttpStatusCode.OK,
+            """{"text":"hello","usage":"not-an-object"}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Text.Should().Be("hello");
+        result.Usage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TranscribeAsync_EmptyUsageObject_LeavesUsageNull()
+    {
+        var (client, _) = BuildClient(StubHttpMessageHandler.RespondingWith(
+            HttpStatusCode.OK,
+            """{"text":"hello","usage":{}}"""));
+
+        var result = await client.TranscribeAsync(SampleRequest());
+
+        result.Usage.Should().BeNull();
+    }
 }

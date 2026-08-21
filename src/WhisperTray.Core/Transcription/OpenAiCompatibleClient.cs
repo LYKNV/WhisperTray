@@ -100,13 +100,54 @@ public sealed class OpenAiCompatibleClient : ITranscriptionClient
                 throw new TranscriptionServerException(null, "Transcription API returned an empty response.");
             }
 
-            return new TranscriptionResult(payload.Text, payload.Language);
+            return new TranscriptionResult(payload.Text, payload.Language, ParseUsage(payload.Usage));
         }
         catch (JsonException ex)
         {
             throw new TranscriptionServerException("Could not parse transcription API response: " + ex.Message, ex);
         }
     }
+
+    /// <summary>
+    /// Reads the optional <c>usage</c> block, which OpenAI shapes either as token
+    /// counts or as billed seconds. Driven by which fields are present rather than by
+    /// <c>type</c>, so a provider that renames or omits <c>type</c> still yields usable
+    /// numbers. Anything unparseable yields null — usage is telemetry, and the
+    /// transcription has already succeeded by this point.
+    /// </summary>
+    private static TranscriptionUsage? ParseUsage(JsonElement? usage)
+    {
+        if (usage is not { ValueKind: JsonValueKind.Object } element)
+        {
+            return null;
+        }
+
+        var input = ReadInt(element, "input_tokens");
+        var output = ReadInt(element, "output_tokens");
+        var total = ReadInt(element, "total_tokens");
+        var seconds = ReadDouble(element, "seconds");
+
+        if (input is null && output is null && total is null && seconds is null)
+        {
+            return null;
+        }
+
+        return new TranscriptionUsage(input, output, total, seconds);
+    }
+
+    private static int? ReadInt(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.Number
+        && value.TryGetInt32(out var parsed)
+            ? parsed
+            : null;
+
+    private static double? ReadDouble(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.Number
+        && value.TryGetDouble(out var parsed)
+            ? parsed
+            : null;
 
     private static TranscriptionException BuildException(HttpStatusCode status, string body)
     {
@@ -165,5 +206,8 @@ public sealed class OpenAiCompatibleClient : ITranscriptionClient
 
         [JsonPropertyName("language")]
         public string? Language { get; init; }
+
+        [JsonPropertyName("usage")]
+        public JsonElement? Usage { get; init; }
     }
 }

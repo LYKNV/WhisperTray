@@ -6,6 +6,17 @@ All notable changes to WhisperTray are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Local usage analytics: each dictation appends one row to
+  `%APPDATA%\WhisperTray\analytics\usage-<YYYY-MM-DD>.csv`, a new file per day,
+  with columns
+  `timestamp,status,error,audio_seconds,provider,model,tokens_in,tokens_out,tokens_total,billed_seconds`.
+  Token and billed-second counts come from the provider's `usage` block where
+  one is returned; empty cells mean "not reported", which is distinct from a
+  reported zero. Failures are logged with their error kind, so reliability can
+  be measured alongside consumption. Writing is best-effort and never
+  interrupts a dictation; transcribed text is never recorded.
+
 ## [0.3.0] — 2026-06-11
 
 ### Added

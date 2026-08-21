@@ -27,6 +27,11 @@ right-click menu.
   language, audio format, injection mode, autostart).
 - **DPAPI-encrypted API key** on disk. Pre-existing plaintext settings are
   migrated on the first save.
+- **Local usage log**: one CSV row per dictation in
+  `%APPDATA%\WhisperTray\analytics\usage-<YYYY-MM-DD>.csv` — time, outcome,
+  audio length, provider, model, and token counts where the provider reports
+  them. A new file each day. Transcribed text is never logged and nothing
+  leaves the machine.
 - **Per-user autostart** via `HKCU\…\Run` — enabled with a checkbox.
 
 ## Install

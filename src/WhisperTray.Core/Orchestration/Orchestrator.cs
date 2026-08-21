@@ -1,3 +1,4 @@
+using WhisperTray.Core.Analytics;
 using WhisperTray.Core.Audio;
 using WhisperTray.Core.Configuration;
 using WhisperTray.Core.Injection;
@@ -23,6 +24,7 @@ public sealed class Orchestrator
     private readonly ITextInjector _injector;
     private readonly IForegroundWindowService _foreground;
     private readonly INotificationService _notifier;
+    private readonly IUsageAnalytics _analytics;
     private readonly Func<Settings> _settings;
     private readonly object _gate = new();
 
@@ -35,6 +37,7 @@ public sealed class Orchestrator
         ITextInjector injector,
         IForegroundWindowService foreground,
         INotificationService notifier,
+        IUsageAnalytics analytics,
         Func<Settings> settings)
     {
         ArgumentNullException.ThrowIfNull(recorder);
@@ -43,6 +46,7 @@ public sealed class Orchestrator
         ArgumentNullException.ThrowIfNull(injector);
         ArgumentNullException.ThrowIfNull(foreground);
         ArgumentNullException.ThrowIfNull(notifier);
+        ArgumentNullException.ThrowIfNull(analytics);
         ArgumentNullException.ThrowIfNull(settings);
 
         _recorder = recorder;
@@ -51,6 +55,7 @@ public sealed class Orchestrator
         _injector = injector;
         _foreground = foreground;
         _notifier = notifier;
+        _analytics = analytics;
         _settings = settings;
     }
 
@@ -113,10 +118,17 @@ public sealed class Orchestrator
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
         }
 
+        // Defaults describe the worst case, so an unannotated exit path is logged as
+        // an unexpected error rather than silently as a success.
+        var status = UsageStatus.Error;
+        var errorKind = UsageErrorKind.Unexpected;
+        TranscriptionUsage? usage = null;
+
         try
         {
             if (target is null)
             {
+                errorKind = UsageErrorKind.NoTarget;
                 _notifier.NotifyError("Internal error", "No foreground window was captured for the session.");
                 return;
             }
@@ -137,14 +149,18 @@ public sealed class Orchestrator
                 },
                 timeoutCts.Token).ConfigureAwait(false);
 
+            usage = result.Usage;
+
             if (string.IsNullOrWhiteSpace(result.Text))
             {
+                status = UsageStatus.Empty;
                 _notifier.NotifyInfo("No speech detected", "The recording produced an empty transcription.");
                 return;
             }
 
             SetState(OrchestratorState.Injecting);
             var injection = _injector.Inject(result.Text, target, settings.InjectionMode);
+            status = UsageStatus.Ok;
             if (!string.IsNullOrEmpty(injection.Reason))
             {
                 _notifier.NotifyInfo("Text routed to clipboard", injection.Reason);
@@ -152,18 +168,32 @@ public sealed class Orchestrator
         }
         catch (TranscriptionAuthException ex)
         {
+            errorKind = UsageErrorKind.Auth;
             _notifier.NotifyError("Authentication failed", ex.Message);
         }
         catch (TranscriptionRateLimitException ex)
         {
+            errorKind = UsageErrorKind.RateLimit;
             _notifier.NotifyWarning("Rate limited", ex.Message);
+        }
+        catch (TranscriptionRequestException ex)
+        {
+            errorKind = UsageErrorKind.Request;
+            _notifier.NotifyError("Transcription failed", ex.Message);
+        }
+        catch (TranscriptionServerException ex)
+        {
+            errorKind = UsageErrorKind.Server;
+            _notifier.NotifyError("Transcription failed", ex.Message);
         }
         catch (TranscriptionException ex)
         {
+            errorKind = UsageErrorKind.Unexpected;
             _notifier.NotifyError("Transcription failed", ex.Message);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            errorKind = UsageErrorKind.Timeout;
             _notifier.NotifyError(
                 "Transcription timed out",
                 $"The provider did not respond within {settings.TimeoutSeconds} seconds. "
@@ -171,14 +201,26 @@ public sealed class Orchestrator
         }
         catch (OperationCanceledException)
         {
+            errorKind = UsageErrorKind.Cancelled;
             _notifier.NotifyInfo("Cancelled", "Transcription was cancelled.");
         }
         catch (Exception ex)
         {
+            errorKind = UsageErrorKind.Unexpected;
             _notifier.NotifyError("Unexpected error", ex.Message);
         }
         finally
         {
+            _analytics.Record(new UsageRecord
+            {
+                Status = status,
+                Error = status == UsageStatus.Error ? errorKind : null,
+                AudioDuration = audio.Duration,
+                Provider = settings.Provider,
+                Model = settings.Model,
+                Usage = usage,
+            });
+
             SetState(OrchestratorState.Idle);
             _capturedTarget = null;
         }

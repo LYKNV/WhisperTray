@@ -1,4 +1,5 @@
 using FluentAssertions;
+using WhisperTray.Core.Analytics;
 using WhisperTray.Core.Audio;
 using WhisperTray.Core.Configuration;
 using WhisperTray.Core.Injection;
@@ -24,6 +25,7 @@ public class OrchestratorTests
             new(WindowHandle: 0x42, ProcessName: "notepad", IsOwnProcess: false, RequiresElevation: false);
         public FakeForegroundWindowService Foreground { get; }
         public RecordingNotificationService Notifier { get; } = new();
+        public FakeUsageAnalytics Analytics { get; } = new();
         public Settings Settings { get; set; } = Settings.Default with
         {
             ApiKey = "sk-test",
@@ -48,6 +50,7 @@ public class OrchestratorTests
                 Injector,
                 Foreground,
                 Notifier,
+                Analytics,
                 () => Settings);
         }
     }
@@ -338,14 +341,147 @@ public class OrchestratorTests
         var fg = new FakeForegroundWindowService(() =>
             new ForegroundWindowInfo(0, "x", false, false));
         var notif = new RecordingNotificationService();
+        var analytics = new FakeUsageAnalytics();
         Func<Settings> s = () => Settings.Default;
 
-        ((Action)(() => new Orchestrator(null!, encF, cliF, injector, fg, notif, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, null!, cliF, injector, fg, notif, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, encF, null!, injector, fg, notif, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, encF, cliF, null!, fg, notif, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, null!, notif, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, fg, null!, s))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, fg, notif, null!))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(null!, encF, cliF, injector, fg, notif, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, null!, cliF, injector, fg, notif, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, null!, injector, fg, notif, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, cliF, null!, fg, notif, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, null!, notif, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, fg, null!, analytics, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, fg, notif, null!, s))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new Orchestrator(recorder, encF, cliF, injector, fg, notif, analytics, null!))).Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task ToggleAsync_SuccessfulDictation_RecordsSingleOkUsageRow()
+    {
+        // 16000 samples of 16-bit mono at 16 kHz = 1.00 s of audio.
+        var h = new Harness(new RecordedAudio(new byte[16_000 * 2], 16_000));
+        h.Settings = h.Settings with
+        {
+            Provider = TranscriptionProvider.Lemonfox,
+            Model = "whisper-large-v3",
+        };
+        h.TranscriptionClient.ResultToReturn = new TranscriptionResult(
+            "hello world",
+            DetectedLanguage: "english",
+            Usage: new TranscriptionUsage(InputTokens: 412, OutputTokens: 48, TotalTokens: 460));
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Analytics.Records.Should().ContainSingle();
+        var row = h.Analytics.Records[0];
+        row.Status.Should().Be(UsageStatus.Ok);
+        row.Error.Should().BeNull();
+        row.AudioDuration.TotalSeconds.Should().BeApproximately(1.0, 0.001);
+        row.Provider.Should().Be(TranscriptionProvider.Lemonfox);
+        row.Model.Should().Be("whisper-large-v3");
+        row.Usage.Should().Be(new TranscriptionUsage(412, 48, 460));
+    }
+
+    [Fact]
+    public async Task ToggleAsync_EmptyTranscription_RecordsEmptyStatus()
+    {
+        var h = new Harness();
+        h.TranscriptionClient.ResultToReturn = new TranscriptionResult("   ");
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Analytics.Records.Should().ContainSingle();
+        h.Analytics.Records[0].Status.Should().Be(UsageStatus.Empty);
+        h.Analytics.Records[0].Error.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(nameof(TranscriptionAuthException), UsageErrorKind.Auth)]
+    [InlineData(nameof(TranscriptionRateLimitException), UsageErrorKind.RateLimit)]
+    [InlineData(nameof(TranscriptionServerException), UsageErrorKind.Server)]
+    [InlineData(nameof(TranscriptionRequestException), UsageErrorKind.Request)]
+    [InlineData("Generic", UsageErrorKind.Unexpected)]
+    public async Task ToggleAsync_TranscriptionFailure_RecordsMatchingErrorKind(
+        string exceptionName, UsageErrorKind expected)
+    {
+        var h = new Harness();
+        h.TranscriptionClient.ExceptionToThrow = exceptionName switch
+        {
+            nameof(TranscriptionAuthException) => new TranscriptionAuthException("bad key"),
+            nameof(TranscriptionRateLimitException) => new TranscriptionRateLimitException("slow down"),
+            nameof(TranscriptionServerException) =>
+                new TranscriptionServerException(System.Net.HttpStatusCode.BadGateway, "upstream down"),
+            nameof(TranscriptionRequestException) =>
+                new TranscriptionRequestException(System.Net.HttpStatusCode.BadRequest, "bad request"),
+            _ => new InvalidOperationException("boom"),
+        };
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Analytics.Records.Should().ContainSingle();
+        h.Analytics.Records[0].Status.Should().Be(UsageStatus.Error);
+        h.Analytics.Records[0].Error.Should().Be(expected);
+        h.Analytics.Records[0].Usage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ToggleAsync_Timeout_RecordsTimeoutErrorKind()
+    {
+        var h = new Harness();
+        h.Settings = h.Settings with { TimeoutSeconds = 1 };
+        h.TranscriptionClient.Delay = TimeSpan.FromSeconds(30);
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Analytics.Records.Should().ContainSingle();
+        h.Analytics.Records[0].Status.Should().Be(UsageStatus.Error);
+        h.Analytics.Records[0].Error.Should().Be(UsageErrorKind.Timeout);
+    }
+
+    [Fact]
+    public async Task ToggleAsync_UserCancellation_RecordsCancelledErrorKind()
+    {
+        var h = new Harness();
+        h.Settings = h.Settings with { TimeoutSeconds = 60 };
+        h.TranscriptionClient.Delay = TimeSpan.FromSeconds(30);
+        using var cts = new CancellationTokenSource();
+
+        await h.Sut.ToggleAsync();
+        var pipeline = h.Sut.ToggleAsync(cts.Token);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+        await pipeline;
+
+        h.Analytics.Records.Should().ContainSingle();
+        h.Analytics.Records[0].Error.Should().Be(UsageErrorKind.Cancelled);
+    }
+
+    [Fact]
+    public async Task ToggleAsync_TwoDictations_RecordsExactlyTwoRows()
+    {
+        var h = new Harness();
+
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+        await h.Sut.ToggleAsync();
+
+        h.Analytics.Records.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ToggleAsync_IgnoredPressWhileTranscribing_DoesNotAddExtraRow()
+    {
+        var h = new Harness();
+        h.TranscriptionClient.Delay = TimeSpan.FromMilliseconds(300);
+
+        await h.Sut.ToggleAsync();          // start recording
+        var pipeline = h.Sut.ToggleAsync(); // stop + transcribe
+        await h.Sut.ToggleAsync();          // ignored: still transcribing
+        await pipeline;
+
+        h.Analytics.Records.Should().ContainSingle();
     }
 }
