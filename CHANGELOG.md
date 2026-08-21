@@ -6,6 +6,8 @@ All notable changes to WhisperTray are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-21
+
 ### Added
 - Local usage analytics: each dictation appends one row to
   `%APPDATA%\WhisperTray\analytics\usage-<YYYY-MM-DD>.csv`, a new file per day,
@@ -16,6 +18,13 @@ All notable changes to WhisperTray are documented here. The format follows
   reported zero. Failures are logged with their error kind, so reliability can
   be measured alongside consumption. Writing is best-effort and never
   interrupts a dictation; transcribed text is never recorded.
+
+### Changed
+- The .NET SDK is pinned to 8.0.424 in `global.json` and in both CI workflows.
+  Previously `dotnet-version: 8.0.x` let the runner pick whichever 8.x SDK it
+  had, and since `dotnet format` ships with the SDK, its rules could change
+  under the repository — turning the CI formatting gate red without a single
+  commit. Formatting behaviour now moves only when the pin is bumped.
 
 ## [0.3.0] — 2026-06-11
 
