@@ -1,0 +1,98 @@
+<Window x:Class="WhisperTray.App.Views.RecordingOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WhisperTray — Recording"
+        Width="360"
+        Height="104"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Focusable="False"
+        IsHitTestVisible="False"
+        WindowStartupLocation="Manual"
+        UseLayoutRounding="True"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <SolidColorBrush x:Key="RecordBrush" Color="#FF4D4D"/>
+        <Storyboard x:Key="BlinkStoryboard" RepeatBehavior="Forever" AutoReverse="True">
+            <DoubleAnimation Storyboard.TargetName="RecDot"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1"
+                             To="0.35"
+                             Duration="0:0:0.6"/>
+        </Storyboard>
+        <Storyboard x:Key="SpinStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="SpinnerRotation"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:0.9"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <!-- Anchored to the bottom so the shorter processing state keeps its distance from the taskbar. -->
+    <Border VerticalAlignment="Bottom"
+            CornerRadius="14"
+            Background="#EB202226"
+            Padding="18,12,18,10">
+        <Grid>
+            <StackPanel x:Name="RecordingPanel">
+                <DockPanel LastChildFill="False">
+                    <Ellipse x:Name="RecDot"
+                             DockPanel.Dock="Left"
+                             Width="10"
+                             Height="10"
+                             VerticalAlignment="Center"
+                             Fill="{StaticResource RecordBrush}"/>
+                    <TextBlock DockPanel.Dock="Left"
+                               Margin="10,0,0,0"
+                               Text="Идёт запись"
+                               Foreground="White"
+                               FontSize="15"
+                               FontWeight="SemiBold"/>
+                    <TextBlock x:Name="ElapsedText"
+                               DockPanel.Dock="Right"
+                               Text="00:00"
+                               Foreground="White"
+                               FontSize="15"/>
+                </DockPanel>
+                <UniformGrid x:Name="LevelBars"
+                             Rows="1"
+                             Height="30"
+                             Margin="0,8,0,6"/>
+                <TextBlock x:Name="HintText"
+                           HorizontalAlignment="Center"
+                           Foreground="#99FFFFFF"
+                           FontSize="12"/>
+            </StackPanel>
+
+            <StackPanel x:Name="ProcessingPanel"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Margin="0,4"
+                        Visibility="Collapsed">
+                <Grid Width="14" Height="14" VerticalAlignment="Center">
+                    <Ellipse Stroke="#4D4DA3FF" StrokeThickness="2"/>
+                    <Ellipse Stroke="#4DA3FF"
+                             StrokeThickness="2"
+                             StrokeDashArray="5 20"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotation"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </Grid>
+                <TextBlock x:Name="ProcessingText"
+                           Margin="10,0,0,0"
+                           Text="Распознавание…"
+                           Foreground="#CFE5FF"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

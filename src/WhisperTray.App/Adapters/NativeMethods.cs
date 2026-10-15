@@ -160,6 +160,20 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern nint GetModuleHandle(string? lpModuleName);
 
+    // ---- Window extended styles (recording overlay) ----
+
+    public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_TRANSPARENT = 0x00000020;
+    public const int WS_EX_TOOLWINDOW = 0x00000080;
+    public const int WS_EX_NOACTIVATE = 0x08000000;
+
+    // The 32-bit Get/SetWindowLong are enough for GWL_EXSTYLE and exist on x86 and x64 alike.
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    public static extern int GetWindowLong(nint hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    public static extern int SetWindowLong(nint hWnd, int nIndex, int dwNewLong);
+
     // ---- GDI: icon handles ----
 
     // Bitmap.GetHicon() returns an hIcon owned by the caller. Icon.FromHandle does NOT

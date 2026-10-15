@@ -14,10 +14,19 @@ public sealed class NAudioRecorder : IAudioRecorder, IDisposable
     private const int BitsPerSample = 16;
     private const int Channels = 1;
 
+    // 50 ms of audio: two meter readings per 100 ms capture buffer.
+    private const int LevelChunkBytes = SampleRate / 20 * (BitsPerSample / 8) * Channels;
+
     private readonly object _gate = new();
     private WaveInEvent? _waveIn;
     private MemoryStream? _buffer;
     private bool _disposed;
+
+    /// <summary>
+    /// Raised on the capture thread with a 0..1 loudness for every ~50 ms of captured
+    /// audio. Handlers must be cheap and must not touch UI objects directly.
+    /// </summary>
+    public event Action<float>? LevelMeasured;
 
     public bool IsRecording
     {
@@ -115,6 +124,32 @@ public sealed class NAudioRecorder : IAudioRecorder, IDisposable
         lock (_gate)
         {
             _buffer?.Write(e.Buffer, 0, e.BytesRecorded);
+        }
+
+        PublishLevels(e.Buffer.AsSpan(0, e.BytesRecorded));
+    }
+
+    // Reads the same bytes that were just buffered for transcription; never modifies them.
+    private void PublishLevels(ReadOnlySpan<byte> pcm)
+    {
+        var handler = LevelMeasured;
+        if (handler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            for (var offset = 0; offset < pcm.Length; offset += LevelChunkBytes)
+            {
+                var chunk = pcm.Slice(offset, Math.Min(LevelChunkBytes, pcm.Length - offset));
+                handler(AudioLevelMeter.ComputeLevel(chunk));
+            }
+        }
+        catch (Exception ex)
+        {
+            // A failing meter must never stop the recording itself.
+            System.Diagnostics.Debug.WriteLine($"Level meter handler failed: {ex}");
         }
     }
 

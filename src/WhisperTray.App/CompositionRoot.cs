@@ -30,6 +30,7 @@ public sealed class CompositionRoot : IDisposable
     private readonly Orchestrator _orchestrator;
     private readonly ISettingsStore _settingsStore;
     private readonly IAutostartService _autostart;
+    private readonly RecordingOverlayController _overlay;
     private Settings _currentSettings;
 
     public CompositionRoot(Dispatcher dispatcher)
@@ -76,6 +77,7 @@ public sealed class CompositionRoot : IDisposable
             () => _currentSettings);
 
         _orchestrator.StateChanged += (_, state) => _tray.UpdateState(state);
+        _overlay = new RecordingOverlayController(dispatcher, _orchestrator, _recorder, () => _currentSettings.Hotkey);
         _hotkey.Toggled += OnHotkeyToggled;
         _tray.SettingsRequested += OnSettingsRequested;
         _tray.QuitRequested += (_, _) => WpfApplication.Current.Shutdown();
@@ -144,6 +146,7 @@ public sealed class CompositionRoot : IDisposable
     {
         _hotkey.Toggled -= OnHotkeyToggled;
         _hotkey.Dispose();
+        _overlay.Dispose();
         _recorder.Dispose();
         _tray.Dispose();
         _http.Dispose();
