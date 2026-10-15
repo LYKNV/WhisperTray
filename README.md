@@ -5,6 +5,45 @@ through a Whisper-compatible API → type the result into the focused window.
 No chrome, no main window — lives in the system tray, configured via a
 right-click menu.
 
+## This fork: recording overlay
+
+This is a fork of [amphasis/WhisperTray](https://github.com/amphasis/WhisperTray),
+based on tag `v0.4.0`. It adds a floating recording indicator; everything else,
+including the licence and history, is upstream's.
+
+- While recording, a small dark panel appears at the bottom centre of the
+  monitor that holds the target window: a blinking REC dot, «Идёт запись»,
+  the elapsed time and live microphone level bars, plus the hotkey hint.
+- After the second hotkey press it switches to «Распознавание…» (and
+  «Вставка текста…» if inserting takes longer than 150 ms), then hides when
+  the dictation finishes, comes back empty or fails.
+- The panel never takes focus, does not show in the taskbar or Alt+Tab and
+  lets mouse clicks fall through to the window underneath.
+- The bars are a level meter fed by the same `WaveInEvent` capture that
+  records the dictation — no second device is opened and the recorded audio
+  is not modified. Transcription still happens after recording stops; this
+  is not streaming STT.
+
+Known limitation: like upstream, the app is system-DPI aware, so on a
+monitor whose scaling differs from the primary one the panel can look
+slightly blurry.
+
+### Trying a build next to an installed copy
+
+Publish into its own folder (see [Build from source](#build-from-source),
+but with a different `--output`) rather than over the installed exe. Then:
+
+1. Quit the installed WhisperTray from its tray menu — two instances fight
+   over the same global hotkey.
+2. Back up `%APPDATA%\WhisperTray\settings.json`; both builds share it.
+3. With **Start with Windows** enabled, every start rewrites the
+   `WhisperTray` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+   to the exe being started — the test build will point autostart at itself.
+
+To roll back, quit the test build from the tray and start the installed
+`WhisperTray.exe` again: on startup it rewrites the Run value back to its own
+path. Check that value afterwards.
+
 ## Features
 
 - **Toggle-style recording** via a user-definable global hotkey
@@ -111,7 +150,8 @@ src/
                                autostart abstraction, provider defaults,
                                validator.
     Audio/                     recorder and encoder abstractions, Opus/OGG,
-                               WAV passthrough.
+                               WAV passthrough, level meter and history,
+                               recording clock.
     Transcription/             OpenAI-compatible client, whisper-api.com
                                polling client, provider-model catalog,
                                exception hierarchy.
@@ -124,7 +164,8 @@ src/
                                recorder, Win32 foreground window, low-level
                                keyboard hook, DPAPI, HKCU run-key registry.
     Tray/                      NotifyIcon host, stateful icon set.
-    Views/                     SettingsWindow.
+    Views/                     SettingsWindow, RecordingOverlayWindow and
+                               its RecordingOverlayController.
     CompositionRoot.cs         wires everything together.
 
 tests/
